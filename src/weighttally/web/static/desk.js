@@ -73,6 +73,20 @@ function showTables(target, records, options={}) {
     for (const group of groups.values()) target.append(rowsTable(group,Object.keys(group[0]),options));
 }
 
+function renderRecheck(card, row) {
+    const proof = row.recheck;
+    if (!proof) return;
+    card.append(node('h3','当班复测单','inner-heading'));
+    const fields = node('dl',undefined,'record-fields');
+    ['复测安排','用量','派单线','原预测','复测预测','风险变化'].forEach(key =>
+        fields.append(node('dt',key),node('dd',proof[key])));
+    card.append(fields);
+    card.append(node('h3','复测改测量','inner-heading'));
+    const labels = ledger.measures;
+    showTables(card,Object.entries(proof['改测量']).map(([field,pair]) => ({
+        量测:labels[field][0],原值:pair['原值'],替换值:pair['替换值'],单位:labels[field][1]})));
+}
+
 function renderMeasurements(card, row) {
     const labels = ledger.measures;
     const snapshot = node('dl',undefined,'record-fields');
@@ -115,11 +129,21 @@ function showDetail() {
             showTables(card,fieldNotes);
         }
         renderMeasurements(card,currentItem);
+        renderRecheck(card,currentItem);
         return;
     }
     const panel = ledger.sections[focus];
     byId('detail-title').textContent = panel.title;
     byId('detail-note').textContent = panel.summary;
+    if (panel.recheck_rows?.length) {
+        const rechecks = node('details',undefined,'rejected');
+        rechecks.append(node('summary',`${panel.recheck_title} · ${panel.recheck_rows.length} 张`));
+        showTables(rechecks,panel.recheck_rows,{linkKey:'复测单',choose: record => {
+            const ticket = ledger.rows.find(item => item.key === record['复测单']);
+            if (ticket) inspect(ticket);
+        }});
+        card.append(rechecks);
+    }
     if (panel.operating_rows?.length) {
         const plan = node('details',undefined,'rejected');
         plan.append(node('summary',`${panel.operating_title} · ${panel.operating_rows.length} 条`));

@@ -16,6 +16,7 @@ AI/ML · 传统ML · 中型
 | M6 | 秤台分组 | 差异定位和外推审查 | `src/weighttally/store_mix/service.py` | `tests/test_store_mix.py` |
 | M7 | 复秤分派 | 硬规则与额度分配 | `src/weighttally/bench_reweigh/service.py` | `tests/test_bench_reweigh.py` |
 | M8 | 称差结算 | 单据及额度证据 | `src/weighttally/weigh_journal/service.py` | `tests/test_weigh_journal.py` |
+| M9 | 复测加签 | 余位、分区上限与降险覆盖 | `src/weighttally/bench_reweigh/rechecks.py` | `tests/test_bench_rechecks.py` |
 
 ## 深度登记
 
@@ -30,3 +31,7 @@ AI/ML · 传统ML · 中型
 | TRAP-44 | 校准样本不足 | 分派前转人工判读并保留原因 | `src/weighttally/basket_backtest/service.py` | `tests/test_basket_backtest.py::test_empty_calibration_requires_review` |
 | TRAP-53 | 单条推断与混批 | 复用冻结参数，各条估计完全一致 | `src/weighttally/tare_deviation/service.py` | `tests/test_tare_deviation.py::test_input_batch_invariance` |
 | TRAP-54 | 特征版本与模型不配对 | 拒绝继续推断并要求重拟合 | `src/weighttally/tare_deviation/service.py` | `tests/test_tare_deviation.py::test_mismatched_model_input_version_fails` |
+| TRAP-61 | 复测改测量超出训练范围 | 超训练域试算不得加签复测 | `src/weighttally/bench_reweigh/rechecks.py` | `tests/test_bench_rechecks.py::test_out_of_envelope_change_cannot_be_signed` |
+| TRAP-62 | 复测余位被分区上限或原派单占满 | 原派单先占位，复测只从余位取 | `src/weighttally/bench_reweigh/rechecks.py` | `tests/test_bench_rechecks.py::test_selection_respects_budget_and_zone_headroom` |
+| TRAP-63 | 一区合计降险最大但覆盖窄 | 先覆盖作业区数，再比较合计降险 | `src/weighttally/bench_reweigh/rechecks.py` | `tests/test_bench_rechecks.py::test_selection_prefers_more_zones_over_larger_drop` |
+| TRAP-64 | 试算值回写实测或重复占位 | 复测只出凭据、不写回，重跑结果一致 | `src/weighttally/pipeline.py` | `tests/test_bench_rechecks.py::test_sample_recheck_is_signed_on_frozen_run` |

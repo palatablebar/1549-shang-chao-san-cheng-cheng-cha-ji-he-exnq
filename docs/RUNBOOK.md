@@ -15,4 +15,4 @@
 docker compose exec -T app python -m weighttally.entry evaluate --input sample_data/scale_slips_sample.json --capacity 9
 ```
 
-在网页筛选单号、作业区或原因，点击结果中的单号查看完整字段与处置证据。下载 JSON 可检视结果、对照原始资料摘要和模型特征版本。
+在网页筛选单号、作业区或原因，点击结果中的单号查看完整字段与处置证据。下载 JSON 可检视结果、对照原始资料摘要和模型特征版本。派单环节另附「当班复测单」：加签结果在 `sections[6].recheck_rows`，逐票凭据含选中的改测量和前后风险；`recheck_summary` 与 `recheck_ledger` 用于和原派单用量对账。复测只占余位，不改变原有派单。

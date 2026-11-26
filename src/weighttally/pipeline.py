@@ -9,6 +9,7 @@ from .tare_deviation import service as model_service
 from .basket_backtest import service as calibration_service
 from .store_mix import service as monitor_service
 from .bench_reweigh import service as dispatch_service
+from .bench_reweigh.rechecks import sign_rechecks
 from .weigh_journal import service as audit_service
 from .tare_versions import contracts as window_contract
 
@@ -68,6 +69,14 @@ def rows_for(plan, scored, vectors):
                       'measurements': dict(zip(('ticket_g', 'actual_g', 'tare_g', 'temp_c', 'bins', 'return_g'), point.input_values, strict=True)),
                       'unmeasured': list(point.missing), 'operations': feature_service.business_factors(vectors[job.key])})
     return order
+
+
+def recheck_for(plan, key):
+    """按票回查选中的改测量和前后风险；未加签的票给出空凭证。"""
+    for ticket in plan.tickets:
+        if ticket.key == key:
+            return ticket.evidence()
+    return None
 
 
 def comparison_rows(predictions):
@@ -136,6 +145,14 @@ def execute(documents, capacity=12, mode='balanced', *, as_of=96):
     ]
     vectors = {item.key: item for item in features.live}
     row_list = rows_for(allocation, scored, vectors)
+    def estimate(vector):
+        return calibration_service.check_point(model_service.predict_one(kernel, vector), fitted_calibration).estimate
+
+    # 联动试算只读冻结特征与校准：复测加签不修改原派单，也不把试算值写回实测。
+    rechecks = sign_rechecks(allocation, vectors, state, estimate)
+    for row in row_list:
+        row['recheck'] = recheck_for(rechecks, row['key'])
+    recheck_rows = [ticket.summary() for ticket in rechecks.tickets]
     operating_rows = dispatch_service.operating_ledger(row_list)
     overtime = calibration_service.boundary_diagnostics(evaluated, 0.6)
     sector = calibration_service.sector_replay(evaluated, 0.6)
@@ -151,16 +168,17 @@ def execute(documents, capacity=12, mode='balanced', *, as_of=96):
         stage_at(3, kernel.name, weight_rows + model_service.inspection_rows(kernel, features) + comparison_rows(scored)),
         stage_at(4, f'{fitted_calibration.method} · {performance.status} · {performance.count} 条回放实绩', calibration_service.calibration_evidence(performance) + [overtime] + sector),
         stage_at(5, f'{drift.status} · {len(drift.domain)} 张单据需外推判读', monitor_service.shift_evidence(drift, coverage) + operating_shift),
-        stage_at(6, f'本班占用 {allocation.capacity-allocation.balance} / {allocation.capacity} 个工位单位', dispatch_service.action_evidence(allocation) + dispatch_service.operating_group(checked_live, allocation)),
+        stage_at(6, f'本班占用 {allocation.capacity-allocation.balance} / {allocation.capacity} 个工位单位 · 复测加签 {len(rechecks.tickets)} 张', dispatch_service.action_evidence(allocation) + dispatch_service.recheck_evidence(rechecks) + dispatch_service.operating_group(checked_live, allocation)),
         stage_at(7, f'处置凭证 {closed.stamp} · 额度守恒', audit_service.reconciliation_evidence(closed) + field_evidence['执行业务单']),
     ]
     details[6]['operating_rows'] = operating_rows
     details[6]['operating_title'] = '逐票复秤凭证'
+    details[6]['recheck_rows'] = recheck_rows
+    details[6]['recheck_title'] = '当班复测单'
+    details[6]['recheck_summary'] = rechecks.evidence()
+    details[6]['recheck_ledger'] = rechecks.ledger_evidence()
     points = [{'label': row['key'], 'value': row['estimate'], 'state': row['state'], 'zone': row['zone'],
                'upper': row['interval'], 'cost': row['cost']} for row in sorted(row_list, key=lambda row: row['key'])]
-    def estimate(vector):
-        return calibration_service.check_point(model_service.predict_one(kernel, vector), fitted_calibration).estimate
-
     # Compare interventions against frozen features, model and calibration;
     # scenario estimates never overwrite the base ticket or its decision.
     for row in row_list:
@@ -169,6 +187,7 @@ def execute(documents, capacity=12, mode='balanced', *, as_of=96):
         row['joint_experiments'] = feature_service.render_joint_experiments(current,state,estimate)
     details[7]['records'].extend(audit_service.site_checklist(row_list))
     details[7]['records'].extend(audit_service.intervention_summary(row_list))
+    details[7]['records'].extend(rechecks.ledger_evidence())
     overview_report = {'capacity' : capacity, 'mode': mode, 'as_of': as_of, 'sample_hash': closed.batch_hash,
               'policy_hash': closed.policy_hash, 'feature_stamp': state.fingerprint,
               'model': kernel.name, 'run_id': closed.stamp, 'object_name': DISPLAY['object_name'],

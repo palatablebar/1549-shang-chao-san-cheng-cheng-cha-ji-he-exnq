@@ -4,6 +4,7 @@ from math import exp, isfinite
 
 from .contracts import RuleNotice, Job, Plan, Policy, RISK_CUTOFF
 from .constraints import WorkOrder, apply_bench_reweigh
+from .rechecks import recheck_evidence
 
 
 def measures(raw):
@@ -110,7 +111,7 @@ def allocate(assessments, attention, policy):
         raise ArithmeticError('派发工位未明确')
     status_order={'已分派':0,'暂停':1,'候补':2,'人工判读':3,'观察':4}
     handoff=tuple(sorted(account.values(),key=lambda item:(status_order[item.state],-item.priority,item.key)))
-    return Plan(handoff,policy.capacity,slots,tuple(sorted(spent.items())))
+    return Plan(handoff,policy.capacity,slots,tuple(sorted(spent.items())),policy.group_quota,policy.trigger)
 
 
 def plan_jobs(assessments, attention, capacity, mode='balanced'):

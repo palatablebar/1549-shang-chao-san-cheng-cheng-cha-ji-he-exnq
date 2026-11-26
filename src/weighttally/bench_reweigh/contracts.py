@@ -52,3 +52,5 @@ class Plan:
     capacity: int
     balance: int
     used_by_group: tuple[tuple[str, int], ...]
+    group_quota: int
+    line: float
